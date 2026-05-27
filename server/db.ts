@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, attendanceRecords, leaveRequests, attendanceSummary } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -35,7 +35,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     };
     const updateSet: Record<string, unknown> = {};
 
-    const textFields = ["name", "email", "loginMethod"] as const;
+    const textFields = ["name", "email", "loginMethod", "phone", "department", "position", "profilePhotoUrl"] as const;
     type TextField = (typeof textFields)[number];
 
     const assignNullable = (field: TextField) => {
@@ -89,4 +89,150 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getAllEmployees(status?: 'active' | 'inactive') {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = status ? [eq(users.status, status)] : [];
+  const result = await db.select().from(users).where(and(...conditions)).orderBy(asc(users.name));
+  return result;
+}
+
+export async function updateUser(id: number, data: Partial<InsertUser>) {
+  const db = await getDb();
+  if (!db) return null;
+
+  await db.update(users).set(data).where(eq(users.id, id));
+  return getUserById(id);
+}
+
+export async function createAttendanceRecord(data: any) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.insert(attendanceRecords).values(data);
+  return result;
+}
+
+export async function getAttendanceByUserAndDate(userId: number, date: Date) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const result = await db
+    .select()
+    .from(attendanceRecords)
+    .where(
+      and(
+        eq(attendanceRecords.userId, userId),
+        gte(attendanceRecords.attendanceDate, startOfDay),
+        lte(attendanceRecords.attendanceDate, endOfDay)
+      )
+    )
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateAttendanceRecord(id: number, data: any) {
+  const db = await getDb();
+  if (!db) return null;
+
+  await db.update(attendanceRecords).set(data).where(eq(attendanceRecords.id, id));
+  const result = await db.select().from(attendanceRecords).where(eq(attendanceRecords.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getAttendanceHistory(userId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select()
+    .from(attendanceRecords)
+    .where(
+      and(
+        eq(attendanceRecords.userId, userId),
+        gte(attendanceRecords.attendanceDate, startDate),
+        lte(attendanceRecords.attendanceDate, endDate)
+      )
+    )
+    .orderBy(desc(attendanceRecords.attendanceDate));
+
+  return result;
+}
+
+export async function createLeaveRequest(data: any) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.insert(leaveRequests).values(data);
+  return result;
+}
+
+export async function getLeaveRequests(userId?: number, status?: 'pending' | 'approved' | 'rejected') {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [];
+  if (userId) conditions.push(eq(leaveRequests.userId, userId));
+  if (status) conditions.push(eq(leaveRequests.status, status));
+
+  const result = await db
+    .select()
+    .from(leaveRequests)
+    .where(and(...conditions))
+    .orderBy(desc(leaveRequests.createdAt));
+
+  return result;
+}
+
+export async function updateLeaveRequest(id: number, data: any) {
+  const db = await getDb();
+  if (!db) return null;
+
+  await db.update(leaveRequests).set(data).where(eq(leaveRequests.id, id));
+  const result = await db.select().from(leaveRequests).where(eq(leaveRequests.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getTodayAttendanceStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, present: 0, absent: 0, late: 0 };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const records = await db
+    .select()
+    .from(attendanceRecords)
+    .where(
+      and(
+        gte(attendanceRecords.attendanceDate, today),
+        lte(attendanceRecords.attendanceDate, tomorrow)
+      )
+    );
+
+  const stats = {
+    total: records.length,
+    present: records.filter(r => r.status === 'present').length,
+    absent: records.filter(r => r.status === 'absent').length,
+    late: records.filter(r => r.status === 'late').length,
+  };
+
+  return stats;
+}
