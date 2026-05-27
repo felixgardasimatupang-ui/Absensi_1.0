@@ -34,6 +34,40 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Simple in-memory rate limiter for attendance check-in/out (KRITIS-06)
+  const checkLimitMap = new Map<string, { count: number; lastReset: number }>();
+  app.use((req, res, next) => {
+    const isSensitive = req.path.includes("attendance.checkIn") || req.path.includes("attendance.checkOut");
+    if (isSensitive) {
+      const ip = (typeof req.headers["x-forwarded-for"] === "string" ? req.headers["x-forwarded-for"] : req.ip) || "unknown";
+      const key = `${ip}:${req.path}`;
+      const now = Date.now();
+      const record = checkLimitMap.get(key) || { count: 0, lastReset: now };
+
+      // 1 minute window, max 5 check-in/out requests per minute
+      if (now - record.lastReset > 60000) {
+        record.count = 1;
+        record.lastReset = now;
+        checkLimitMap.set(key, record);
+      } else {
+        record.count += 1;
+        checkLimitMap.set(key, record);
+        if (record.count > 5) {
+          res.status(429).json({
+            error: {
+              message: "Terlalu banyak permintaan absensi. Silakan coba lagi setelah 1 menit.",
+              code: -32005,
+              data: { code: "TOO_MANY_REQUESTS", httpStatus: 429 }
+            }
+          });
+          return;
+        }
+      }
+    }
+    next();
+  });
+
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   // tRPC API

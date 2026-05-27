@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
+import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import {
   createAttendanceRecord,
   getAttendanceByUserAndDate,
@@ -7,6 +8,20 @@ import {
   getAttendanceHistory,
 } from "../db";
 import { storagePut } from "../storage";
+
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Earth radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export const attendanceRouter = router({
   // Get today's attendance record for current user
@@ -26,13 +41,29 @@ export const attendanceRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Server-side Geofencing validation
+      const OFFICE_LAT = parseFloat(process.env.OFFICE_LATITUDE ?? "-3.5952");
+      const OFFICE_LNG = parseFloat(process.env.OFFICE_LONGITUDE ?? "98.6722");
+      const MAX_RADIUS = parseFloat(process.env.CHECKIN_RADIUS_METERS ?? "200");
+
+      const distance = haversineDistance(input.latitude, input.longitude, OFFICE_LAT, OFFICE_LNG);
+      if (distance > MAX_RADIUS) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Anda terlalu jauh dari kantor (${Math.round(distance)}m dari batas maksimal ${MAX_RADIUS}m)`,
+        });
+      }
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       // Check if already checked in today
       const existing = await getAttendanceByUserAndDate(ctx.user.id, today);
       if (existing?.checkInTime) {
-        throw new Error("Already checked in today");
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Already checked in today",
+        });
       }
 
       let photoUrl = null;
@@ -51,14 +82,15 @@ export const attendanceRouter = router({
       }
 
       const checkInTime = new Date();
-      const isLate = checkInTime.getHours() > 9; // Assuming 9 AM is the standard time
+      const workStartHour = parseInt(process.env.WORK_START_HOUR ?? "9", 10);
+      const isLate = checkInTime.getHours() > workStartHour || (checkInTime.getHours() === workStartHour && checkInTime.getMinutes() > 0);
 
       if (existing) {
         // Update existing record with check-in
         return updateAttendanceRecord(existing.id, {
           checkInTime,
-          checkInLatitude: input.latitude,
-          checkInLongitude: input.longitude,
+          checkInLatitude: String(input.latitude),
+          checkInLongitude: String(input.longitude),
           checkInPhotoUrl: photoUrl,
           status: isLate ? "late" : "present",
           attendanceDate: today,
@@ -68,8 +100,8 @@ export const attendanceRouter = router({
         return createAttendanceRecord({
           userId: ctx.user.id,
           checkInTime,
-          checkInLatitude: input.latitude,
-          checkInLongitude: input.longitude,
+          checkInLatitude: String(input.latitude),
+          checkInLongitude: String(input.longitude),
           checkInPhotoUrl: photoUrl,
           status: isLate ? "late" : "present",
           attendanceDate: today,
@@ -87,16 +119,35 @@ export const attendanceRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Server-side Geofencing validation
+      const OFFICE_LAT = parseFloat(process.env.OFFICE_LATITUDE ?? "-3.5952");
+      const OFFICE_LNG = parseFloat(process.env.OFFICE_LONGITUDE ?? "98.6722");
+      const MAX_RADIUS = parseFloat(process.env.CHECKIN_RADIUS_METERS ?? "200");
+
+      const distance = haversineDistance(input.latitude, input.longitude, OFFICE_LAT, OFFICE_LNG);
+      if (distance > MAX_RADIUS) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Anda terlalu jauh dari kantor (${Math.round(distance)}m dari batas maksimal ${MAX_RADIUS}m)`,
+        });
+      }
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const record = await getAttendanceByUserAndDate(ctx.user.id, today);
       if (!record) {
-        throw new Error("No check-in record found for today");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No check-in record found for today",
+        });
       }
 
       if (record.checkOutTime) {
-        throw new Error("Already checked out today");
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Already checked out today",
+        });
       }
 
       let photoUrl = null;
@@ -126,10 +177,10 @@ export const attendanceRouter = router({
 
       return updateAttendanceRecord(record.id, {
         checkOutTime,
-        checkOutLatitude: input.latitude,
-        checkOutLongitude: input.longitude,
+        checkOutLatitude: String(input.latitude),
+        checkOutLongitude: String(input.longitude),
         checkOutPhotoUrl: photoUrl,
-        workHours,
+        workHours: String(workHours),
       });
     }),
 
@@ -146,7 +197,7 @@ export const attendanceRouter = router({
     }),
 
   // Get attendance history for a specific employee (admin only)
-  getEmployeeHistory: protectedProcedure
+  getEmployeeHistory: adminProcedure
     .input(
       z.object({
         userId: z.number(),
@@ -154,10 +205,7 @@ export const attendanceRouter = router({
         endDate: z.date(),
       })
     )
-    .query(async ({ ctx, input }) => {
-      if (ctx.user.role !== "admin") {
-        throw new Error("Unauthorized");
-      }
+    .query(async ({ input }) => {
       return getAttendanceHistory(input.userId, input.startDate, input.endDate);
     }),
 });

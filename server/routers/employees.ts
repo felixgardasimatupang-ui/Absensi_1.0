@@ -20,24 +20,24 @@ export const employeesRouter = router({
     .input(
       z.object({
         employeeId: z.number(),
-        name: z.string().optional(),
-        email: z.string().email().optional(),
-        phone: z.string().optional(),
-        department: z.string().optional(),
-        position: z.string().optional(),
+        name: z.string().nullable().optional(),
+        email: z.string().email().or(z.literal("")).nullable().optional(),
+        phone: z.string().nullable().optional(),
+        department: z.string().nullable().optional(),
+        position: z.string().nullable().optional(),
         role: z.enum(["user", "admin"]).optional(),
         status: z.enum(["active", "inactive"]).optional(),
       })
     )
     .mutation(async ({ input }) => {
       const updateData: any = {};
-      if (input.name) updateData.name = input.name;
-      if (input.email) updateData.email = input.email;
-      if (input.phone) updateData.phone = input.phone;
-      if (input.department) updateData.department = input.department;
-      if (input.position) updateData.position = input.position;
-      if (input.role) updateData.role = input.role;
-      if (input.status) updateData.status = input.status;
+      if (input.name !== undefined) updateData.name = input.name || null;
+      if (input.email !== undefined) updateData.email = input.email || null;
+      if (input.phone !== undefined) updateData.phone = input.phone || null;
+      if (input.department !== undefined) updateData.department = input.department || null;
+      if (input.position !== undefined) updateData.position = input.position || null;
+      if (input.role !== undefined) updateData.role = input.role;
+      if (input.status !== undefined) updateData.status = input.status;
 
       return updateUser(input.employeeId, updateData);
     }),
@@ -70,18 +70,18 @@ export const employeesRouter = router({
   updateProfile: protectedProcedure
     .input(
       z.object({
-        name: z.string().optional(),
-        phone: z.string().optional(),
-        department: z.string().optional(),
-        position: z.string().optional(),
+        name: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
+        department: z.string().nullable().optional(),
+        position: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const updateData: any = {};
-      if (input.name) updateData.name = input.name;
-      if (input.phone) updateData.phone = input.phone;
-      if (input.department) updateData.department = input.department;
-      if (input.position) updateData.position = input.position;
+      if (input.name !== undefined) updateData.name = input.name || null;
+      if (input.phone !== undefined) updateData.phone = input.phone || null;
+      if (input.department !== undefined) updateData.department = input.department || null;
+      if (input.position !== undefined) updateData.position = input.position || null;
 
       return updateUser(ctx.user.id, updateData);
     }),

@@ -25,6 +25,8 @@ describe("Attendance Router", () => {
       vi.mocked(db.getAttendanceByUserAndDate).mockResolvedValue(mockRecord as any);
 
       const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
         user: { id: 1, role: "user" } as any,
       });
 
@@ -36,6 +38,8 @@ describe("Attendance Router", () => {
       vi.mocked(db.getAttendanceByUserAndDate).mockResolvedValue(null);
 
       const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
         user: { id: 1, role: "user" } as any,
       });
 
@@ -45,17 +49,19 @@ describe("Attendance Router", () => {
   });
 
   describe("checkIn", () => {
-    it("should create a new attendance record on check-in", async () => {
+    it("should create a new attendance record on check-in within office coordinates", async () => {
       vi.mocked(db.getAttendanceByUserAndDate).mockResolvedValue(null);
       vi.mocked(db.createAttendanceRecord).mockResolvedValue({ id: 1 } as any);
 
       const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
         user: { id: 1, role: "user" } as any,
       });
 
       const result = await caller.checkIn({
-        latitude: 10.5,
-        longitude: 20.5,
+        latitude: -3.5952,
+        longitude: 98.6722,
       });
 
       expect(result).toBeDefined();
@@ -73,6 +79,23 @@ describe("Attendance Router", () => {
       vi.mocked(db.getAttendanceByUserAndDate).mockResolvedValue(mockRecord as any);
 
       const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
+        user: { id: 1, role: "user" } as any,
+      });
+
+      await expect(
+        caller.checkIn({
+          latitude: -3.5952,
+          longitude: 98.6722,
+        })
+      ).rejects.toThrow("Already checked in today");
+    });
+
+    it("should throw error if coordinates are too far from office (geofencing)", async () => {
+      const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
         user: { id: 1, role: "user" } as any,
       });
 
@@ -81,7 +104,7 @@ describe("Attendance Router", () => {
           latitude: 10.5,
           longitude: 20.5,
         })
-      ).rejects.toThrow("Already checked in today");
+      ).rejects.toThrow("Anda terlalu jauh dari kantor");
     });
   });
 
@@ -102,12 +125,14 @@ describe("Attendance Router", () => {
       } as any);
 
       const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
         user: { id: 1, role: "user" } as any,
       });
 
       const result = await caller.checkOut({
-        latitude: 10.5,
-        longitude: 20.5,
+        latitude: -3.5952,
+        longitude: 98.6722,
       });
 
       expect(result).toBeDefined();
@@ -118,6 +143,23 @@ describe("Attendance Router", () => {
       vi.mocked(db.getAttendanceByUserAndDate).mockResolvedValue(null);
 
       const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
+        user: { id: 1, role: "user" } as any,
+      });
+
+      await expect(
+        caller.checkOut({
+          latitude: -3.5952,
+          longitude: 98.6722,
+        })
+      ).rejects.toThrow("No check-in record found for today");
+    });
+
+    it("should throw error if check-out is too far from office (geofencing)", async () => {
+      const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
         user: { id: 1, role: "user" } as any,
       });
 
@@ -126,7 +168,7 @@ describe("Attendance Router", () => {
           latitude: 10.5,
           longitude: 20.5,
         })
-      ).rejects.toThrow("No check-in record found for today");
+      ).rejects.toThrow("Anda terlalu jauh dari kantor");
     });
   });
 
@@ -140,6 +182,8 @@ describe("Attendance Router", () => {
       vi.mocked(db.getAttendanceHistory).mockResolvedValue(mockRecords as any);
 
       const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
         user: { id: 1, role: "user" } as any,
       });
 
@@ -149,6 +193,50 @@ describe("Attendance Router", () => {
       const result = await caller.getHistory({ startDate, endDate });
       expect(result).toEqual(mockRecords);
       expect(db.getAttendanceHistory).toHaveBeenCalledWith(1, startDate, endDate);
+    });
+  });
+
+  describe("getEmployeeHistory", () => {
+    it("should throw forbidden error if caller is not admin", async () => {
+      const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
+        user: { id: 1, role: "user" } as any,
+      });
+
+      await expect(
+        caller.getEmployeeHistory({
+          userId: 2,
+          startDate: new Date(),
+          endDate: new Date(),
+        })
+      ).rejects.toThrow("You do not have required permission");
+    });
+
+    it("should allow admin to fetch history for other employee", async () => {
+      const mockRecords = [
+        { id: 1, userId: 2, attendanceDate: new Date(), status: "present" },
+      ];
+
+      vi.mocked(db.getAttendanceHistory).mockResolvedValue(mockRecords as any);
+
+      const caller = attendanceRouter.createCaller({
+        req: {} as any,
+        res: {} as any,
+        user: { id: 1, role: "admin" } as any,
+      });
+
+      const startDate = new Date();
+      const endDate = new Date();
+
+      const result = await caller.getEmployeeHistory({
+        userId: 2,
+        startDate,
+        endDate,
+      });
+
+      expect(result).toEqual(mockRecords);
+      expect(db.getAttendanceHistory).toHaveBeenCalledWith(2, startDate, endDate);
     });
   });
 });

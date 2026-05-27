@@ -29,7 +29,7 @@ export type InsertUser = typeof users.$inferInsert;
  */
 export const attendanceRecords = mysqlTable("attendanceRecords", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   checkInTime: datetime("checkInTime"),
   checkOutTime: datetime("checkOutTime"),
   checkInLatitude: decimal("checkInLatitude", { precision: 10, scale: 8 }),
@@ -54,13 +54,13 @@ export type InsertAttendanceRecord = typeof attendanceRecords.$inferInsert;
  */
 export const leaveRequests = mysqlTable("leaveRequests", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   leaveType: mysqlEnum("leaveType", ["annual", "sick", "personal", "permission"]).notNull(),
   startDate: datetime("startDate").notNull(),
   endDate: datetime("endDate").notNull(),
   reason: text("reason"),
   status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
-  approvedBy: int("approvedBy"),
+  approvedBy: int("approvedBy").references(() => users.id, { onDelete: "set null" }),
   approvalNotes: text("approvalNotes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -74,7 +74,7 @@ export type InsertLeaveRequest = typeof leaveRequests.$inferInsert;
  */
 export const attendanceSummary = mysqlTable("attendanceSummary", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   summaryDate: datetime("summaryDate").notNull(),
   totalPresent: int("totalPresent").default(0),
   totalAbsent: int("totalAbsent").default(0),

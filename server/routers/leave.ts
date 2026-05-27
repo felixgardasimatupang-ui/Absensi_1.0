@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { createLeaveRequest, getLeaveRequests, updateLeaveRequest } from "../db";
 
@@ -25,7 +26,10 @@ export const leaveRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       if (input.endDate < input.startDate) {
-        throw new Error("End date must be after start date");
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "End date must be after start date",
+        });
       }
 
       return createLeaveRequest({

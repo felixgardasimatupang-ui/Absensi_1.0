@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, desc, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, attendanceRecords, leaveRequests, attendanceSummary } from "../drizzle/schema";
+import { InsertUser, users, attendanceRecords, leaveRequests, attendanceSummary, InsertAttendanceRecord, InsertLeaveRequest } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -114,7 +114,7 @@ export async function updateUser(id: number, data: Partial<InsertUser>) {
   return getUserById(id);
 }
 
-export async function createAttendanceRecord(data: any) {
+export async function createAttendanceRecord(data: InsertAttendanceRecord) {
   const db = await getDb();
   if (!db) return null;
 
@@ -146,7 +146,7 @@ export async function getAttendanceByUserAndDate(userId: number, date: Date) {
   return result.length > 0 ? result[0] : null;
 }
 
-export async function updateAttendanceRecord(id: number, data: any) {
+export async function updateAttendanceRecord(id: number, data: Partial<InsertAttendanceRecord>) {
   const db = await getDb();
   if (!db) return null;
 
@@ -174,7 +174,7 @@ export async function getAttendanceHistory(userId: number, startDate: Date, endD
   return result;
 }
 
-export async function createLeaveRequest(data: any) {
+export async function createLeaveRequest(data: InsertLeaveRequest) {
   const db = await getDb();
   if (!db) return null;
 
@@ -199,7 +199,7 @@ export async function getLeaveRequests(userId?: number, status?: 'pending' | 'ap
   return result;
 }
 
-export async function updateLeaveRequest(id: number, data: any) {
+export async function updateLeaveRequest(id: number, data: Partial<InsertLeaveRequest>) {
   const db = await getDb();
   if (!db) return null;
 

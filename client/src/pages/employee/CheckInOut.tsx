@@ -80,7 +80,7 @@ export default function CheckInOut() {
         canvasRef.current.width = videoRef.current.videoWidth;
         canvasRef.current.height = videoRef.current.videoHeight;
         context.drawImage(videoRef.current, 0, 0);
-        const imageData = canvasRef.current.toDataURL("image/jpeg");
+        const imageData = canvasRef.current.toDataURL("image/jpeg", 0.7);
         setPhotoData(imageData);
         stopCamera();
       }
@@ -132,6 +132,9 @@ export default function CheckInOut() {
       toast.error("Please capture a photo");
       return;
     }
+
+    const isConfirmed = window.confirm("Apakah Anda yakin ingin melakukan Check-Out? Aksi ini bersifat final untuk hari ini.");
+    if (!isConfirmed) return;
 
     setIsLoading(true);
     try {
