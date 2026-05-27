@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { InsertUser } from "../../drizzle/schema";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { getAllEmployees, updateUser, getTodayAttendanceStats } from "../db";
 
@@ -30,7 +31,7 @@ export const employeesRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const updateData: any = {};
+      const updateData: Partial<InsertUser> = {};
       if (input.name !== undefined) updateData.name = input.name || null;
       if (input.email !== undefined) updateData.email = input.email || null;
       if (input.phone !== undefined) updateData.phone = input.phone || null;
@@ -77,7 +78,7 @@ export const employeesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const updateData: any = {};
+      const updateData: Partial<InsertUser> = {};
       if (input.name !== undefined) updateData.name = input.name || null;
       if (input.phone !== undefined) updateData.phone = input.phone || null;
       if (input.department !== undefined) updateData.department = input.department || null;

@@ -17,6 +17,15 @@ Aplikasi sistem absensi berbasis web yang dirancang khusus untuk memenuhi kebutu
 - **Manajemen Pengajuan Cuti**: Menerima atau menolak pengajuan cuti/izin karyawan.
 - **Keamanan Lanjut**: Panel dilindungi dengan metode `adminProcedure` berbasis tRPC untuk memvalidasi *role* secara konsisten.
 
+## ✅ Status Saat Ini (Audit + Remediasi 27 Mei 2026)
+- Geofencing check-in/check-out sudah divalidasi di server.
+- Otorisasi admin untuk endpoint sensitif sudah menggunakan `adminProcedure`.
+- Foreign key di schema absensi/cuti sudah aktif.
+- Unit test backend lulus (`21/21`) dan build produksi berhasil.
+- Cookie session policy sudah aman untuk HTTPS production maupun local HTTP.
+- Validasi environment kritikal sudah fail-fast saat startup server.
+- Analytics sudah di-load secara conditional sehingga build bersih warning placeholder env.
+
 ## 🏗️ Teknologi yang Digunakan
 
 Proyek ini dibangun di atas *Web App Template* yang dimodifikasi, menggunakan teknologi:
@@ -32,13 +41,14 @@ Proyek ini dibangun di atas *Web App Template* yang dimodifikasi, menggunakan te
 
 ### Persyaratan
 - Node.js (Disarankan v20+)
-- `pnpm` (Package Manager)
+- `pnpm` (Package Manager)  
+  Jika belum terpasang global, gunakan `npx pnpm`.
 - Database MySQL
 
 ### 1. Kloning dan Instalasi
 ```bash
 # Instal semua dependensi
-pnpm install
+npx pnpm install
 ```
 
 ### 2. Konfigurasi Environment
@@ -51,13 +61,13 @@ Isi nilai-nilai di dalam `.env` sesuai dengan server database Anda dan konfigura
 ### 3. Setup Database
 Sinkronisasikan schema Drizzle ke database:
 ```bash
-pnpm db:push
+npx pnpm db:push
 ```
 
 ### 4. Menjalankan Aplikasi
 ```bash
 # Menjalankan server dan client dalam mode development
-pnpm dev
+npx pnpm dev
 ```
 Aplikasi dapat diakses melalui browser sesuai dengan URL yang tertera di console.
 
@@ -65,12 +75,12 @@ Aplikasi dapat diakses melalui browser sesuai dengan URL yang tertera di console
 
 Jalankan pengujian unit (Vitest) yang mencakup logika geofencing, pengajuan cuti, dan keamanan router:
 ```bash
-pnpm test
+npx pnpm test
 ```
 
 Untuk mengecek tidak ada *error TypeScript*:
 ```bash
-pnpm check
+npx pnpm check
 ```
 
 ## 🔒 Catatan Keamanan
@@ -78,6 +88,9 @@ Proyek ini mengadopsi standar keamanan yang ketat:
 - **Rate Limiting (In-Memory)** diterapkan pada endpoint Check-in / Check-out untuk mencegah serangan DDoS / brute force.
 - **Foreign Key Constraints** telah diterapkan di schema Drizzle untuk menjaga integritas data absensi.
 - Endpoint admin diamankan secara penuh melalui *middleware* `adminProcedure`.
+
+## Known Limitations
+- Rate limiter saat ini masih **in-memory**; untuk deployment multi-instance sangat disarankan migrasi ke Redis/distributed limiter.
 
 ## 📜 Lisensi
 MIT

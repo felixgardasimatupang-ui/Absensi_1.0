@@ -31,17 +31,30 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  app.set("trust proxy", true);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   // Simple in-memory rate limiter for attendance check-in/out (KRITIS-06)
   const checkLimitMap = new Map<string, { count: number; lastReset: number }>();
+  setInterval(() => {
+    const now = Date.now();
+    checkLimitMap.forEach((value, key) => {
+      if (now - value.lastReset > 5 * 60_000) {
+        checkLimitMap.delete(key);
+      }
+    });
+  }, 60_000).unref();
+
   app.use((req, res, next) => {
     const isSensitive = req.path.includes("attendance.checkIn") || req.path.includes("attendance.checkOut");
     if (isSensitive) {
-      const ip = (typeof req.headers["x-forwarded-for"] === "string" ? req.headers["x-forwarded-for"] : req.ip) || "unknown";
-      const key = `${ip}:${req.path}`;
+      const forwarded = typeof req.headers["x-forwarded-for"] === "string"
+        ? req.headers["x-forwarded-for"].split(",")[0]?.trim()
+        : undefined;
+      const clientIp = forwarded || req.ip || "unknown";
+      const key = `${clientIp}:${req.path}`;
       const now = Date.now();
       const record = checkLimitMap.get(key) || { count: 0, lastReset: now };
 
